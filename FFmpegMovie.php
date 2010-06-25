@@ -9,32 +9,35 @@
 */
 class FFmpegMovie implements Serializable {
 
-    protected static $EX_CODE_NO_FFMPEG      = 334560;
-    protected static $EX_CODE_FILE_NOT_FOUND = 334561;
-    protected static $EX_CODE_UNKNOWN_FORMAT = 334562;
+    protected static $FFMPEG_BINARY              = '/usr/local/bin/ffmpeg';
+    protected static $EX_CODE_NO_FFMPEG          = 334560;
+    protected static $EX_CODE_FILE_NOT_FOUND     = 334561;
+    protected static $EX_CODE_UNKNOWN_FORMAT     = 334562;
     
-    protected static $persistentBuffer        = array();
+    protected static $persistentBuffer           = array();
     
-    protected static $REGEX_NO_FFMPEG         = '/FFmpeg version/';
-    protected static $REGEX_UNKNOWN_FORMAT    = '/[^:]+: Unknown format/';
-    protected static $REGEX_DURATION          = '/Duration: ([0-9]{2}):([0-9]{2}):([0-9]{2})(\.([0-9]+))?/';
-    protected static $REGEX_FRAME_RATE        = '/([0-9\.]+)\stbr/';    
-    protected static $REGEX_COMMENT           = '/comment\s*:\s*(.+)/i';
-    protected static $REGEX_TITLE             = '/title\s*:\s*(.+)/i';
-    protected static $REGEX_ARTIST            = '/(artist|author)\s*:\s*(.+)/i';
-    protected static $REGEX_COPYRIGHT         = '/copyright\s*:\s*(.+)/i';
-    protected static $REGEX_GENRE             = '/genre\s*:\s*(.+)/i';
-    protected static $REGEX_TRACK_NUMBER      = '/track\s*:\s*(.+)/i';
-    protected static $REGEX_YEAR              = '/year\s*:\s*(.+)/i';
-    protected static $REGEX_FRAME_WH          = '/Video:.+?([0-9]+)x([0-9]+)/';
-    protected static $REGEX_PIXEL_FORMAT      = '/Video: [^,]+, ([^,]+)/';
-    protected static $REGEX_BITRATE           = '/bitrate: ([0-9]+) kb\/s/';    
-    protected static $REGEX_VIDEO_BITRATE     = '/Video:.+?([0-9]+) kb\/s/';
-    protected static $REGEX_AUDIO_BITRATE     = '/Audio:.+?([0-9]+) kb\/s/';
-    protected static $REGEX_AUDIO_SAMPLE_RATE = '/Audio:.+?([0-9]+) Hz/';
-    protected static $REGEX_VIDEO_CODEC       = '/Video:\s([^,]+),/';
-    protected static $REGEX_AUDIO_CODEC       = '/Audio:\s([^,]+),/';
-    protected static $REGEX_AUDIO_CHANNELS    = '/Audio:\s[^,]+,[^,]+,([^,]+)/';
+    protected static $REGEX_NO_FFMPEG            = '/FFmpeg version/';
+    protected static $REGEX_UNKNOWN_FORMAT       = '/[^:]+: Unknown format/';
+    protected static $REGEX_DURATION             = '/Duration: ([0-9]{2}):([0-9]{2}):([0-9]{2})(\.([0-9]+))?/';
+    protected static $REGEX_FRAME_RATE           = '/([0-9\.]+)\stbr/';    
+    protected static $REGEX_COMMENT              = '/comment\s*:\s*(.+)/i';
+    protected static $REGEX_TITLE                = '/title\s*:\s*(.+)/i';
+    protected static $REGEX_ARTIST               = '/(artist|author)\s*:\s*(.+)/i';
+    protected static $REGEX_COPYRIGHT            = '/copyright\s*:\s*(.+)/i';
+    protected static $REGEX_GENRE                = '/genre\s*:\s*(.+)/i';
+    protected static $REGEX_TRACK_NUMBER         = '/track\s*:\s*(.+)/i';
+    protected static $REGEX_YEAR                 = '/year\s*:\s*(.+)/i';
+    protected static $REGEX_FRAME_WH             = '/Video:.+?([0-9]+)x([0-9]+)/';
+    protected static $REGEX_PIXEL_FORMAT         = '/Video: [^,]+, ([^,]+)/';
+    protected static $REGEX_BITRATE              = '/bitrate: ([0-9]+) kb\/s/';
+    protected static $REGEX_VIDEO_BITRATE        = '/Video:.+?([0-9]+) kb\/s/';
+    protected static $REGEX_AUDIO_BITRATE        = '/Audio:.+?([0-9]+) kb\/s/';
+    protected static $REGEX_AUDIO_SAMPLE_RATE    = '/Audio:.+?([0-9]+) Hz/';
+    protected static $REGEX_VIDEO_CODEC          = '/Video:\s([^,]+),/';
+    protected static $REGEX_AUDIO_CODEC          = '/Audio:\s([^,]+),/';
+    protected static $REGEX_AUDIO_CHANNELS       = '/Audio:\s[^,]+,[^,]+,([^,]+)/';
+    protected static $REGEX_PIXEL_ASPECT_RATIO   = '/PAR\s(.+?)\s/';
+    protected static $REGEX_DISPLAY_ASPECT_RATIO = '/DAR\s(.+?),/';
     
     /**
     * Movie file path
@@ -182,6 +185,19 @@ class FFmpegMovie implements Serializable {
     * @var int
     */
     protected $audioChannels;
+    /**
+    * Movie pixel aspect ratio
+    * 
+    * @var string
+    */
+    protected $pixelAspectRatio;
+    /**
+    * Movie display aspect ratio
+    * 
+    * @var string
+    */
+    protected $displayAspectRatio;
+    
     
     /**
     * Open a video or audio file and return it as an FFmpegMovie object. 
@@ -219,7 +235,7 @@ class FFmpegMovie implements Serializable {
         
         // Get information about file from ffmpeg
         $output = array();
-        exec('ffmpeg -i '.escapeshellarg($this->movieFile).' 2>&1', $output, $retVar);        
+        exec(self::$FFMPEG_BINARY.' -i '.escapeshellarg($this->movieFile).' 2>&1', $output, $retVar);        
         $this->ffmpegOut = join(PHP_EOL, $output);
         
         // No ffmpeg installed
@@ -593,6 +609,36 @@ class FFmpegMovie implements Serializable {
         }
         
         return $this->audioChannels;
+    }
+    
+    /**
+    * Return the pixel aspect ratio (PAR) of this movie as a string.
+    *
+    * @return string 
+    */
+    public function getPixelAspectRatio() {
+        if ($this->pixelAspectRatio === null) {
+            $match = array();
+            preg_match(self::$REGEX_PIXEL_ASPECT_RATIO, $this->ffmpegOut, $match);
+            $this->pixelAspectRatio = (array_key_exists(1, $match)) ? trim($match[1]) : '';
+        }
+        
+        return $this->pixelAspectRatio;
+    }
+    
+    /**
+    * Return the display aspect ratio (DAR) of this movie as a string.
+    *
+    * @return string 
+    */
+    public function getDisplayAspectRatio() {
+        if ($this->displayAspectRatio === null) {
+            $match = array();
+            preg_match(self::$REGEX_DISPLAY_ASPECT_RATIO, $this->ffmpegOut, $match);
+            $this->displayAspectRatio = (array_key_exists(1, $match)) ? trim($match[1]) : '';
+        }
+        
+        return $this->displayAspectRatio;
     }
     
     /**
